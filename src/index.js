@@ -2,12 +2,36 @@ const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}});
 const clean=(v,max=4000)=>String(v??"").trim().slice(0,max);
 function searchQuery(v,q){return [v?.brand,v?.model,v?.year,v?.engine,v?.power,q,"Forum Erfahrungen Fehler Diagnose Reparatur"].filter(Boolean).join(" ")}
-async function search(env,q){
- if(!env.TAVILY_API_KEY)return [];
- const r=await fetch("https://api.tavily.com/search",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({api_key:env.TAVILY_API_KEY,query:q,search_depth:"advanced",max_results:6,include_answer:false,include_raw_content:false})});
- if(!r.ok) throw new Error(`Websuche fehlgeschlagen (${r.status})`);
- const d=await r.json();
- return (d.results||[]).map((x,i)=>({id:i+1,title:clean(x.title,180),url:clean(x.url,500),content:clean(x.content,1800)}));
+async function search(env,q){async function search(env, q) {
+  if (!env.SERPER_API_KEY) return [];
+
+  const r = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: {
+      "X-API-KEY": env.SERPER_API_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      q: q,
+      gl: "de",
+      hl: "de",
+      num: 8
+    })
+  });
+
+  if (!r.ok) {
+    throw new Error(`Websuche fehlgeschlagen (${r.status})`);
+  }
+
+  const data = await r.json();
+
+  return (data.organic || []).map((x, i) => ({
+    id: i + 1,
+    title: clean(x.title, 180),
+    url: clean(x.link, 500),
+    content: clean(x.snippet || "", 1800)
+  }));
+}
 }
 function prompt(v={},mem=[],src=[]){
  const vehicle=[v.brand&&`Marke: ${v.brand}`,v.model&&`Modell: ${v.model}`,v.year&&`Baujahr: ${v.year}`,v.engine&&`Motor: ${v.engine}`,v.power&&`Leistung: ${v.power}`,v.fuel&&`Kraftstoff: ${v.fuel}`,v.notes&&`Fahrzeugnotizen: ${v.notes}`].filter(Boolean).join("\n")||"Noch kein Fahrzeugprofil hinterlegt.";
